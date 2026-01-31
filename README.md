@@ -100,10 +100,33 @@ function isVerifiedIntelligentAgent(address agent) public view returns (bool) {
 
 | Network | Contract | Address |
 |---------|----------|---------|
-| Base Sepolia | ProofOfIntelligence | `0xcd950495EdfADa47478a9D804B73dB398447A528` |
-| Base Sepolia | MockAgentRegistry | `0x0837053E8630bA0323fd15940021A2a9f5d366c4` |
+| Base Sepolia | ProofOfIntelligence | `0xA2B4624598F198Ea1d3a51A6C0De11590AaaFC60` |
+| Base Sepolia | MockAgentRegistry | `0xE0b8fEfbBe7b041dEec12d2aF40A9aBA9A3018d4` |
 
-**First PoI Verified:** Agent `0xffA12D92098eB2b72B3c30B62f8da02BA4158c1e` (0xClaw) - Challenge Type 3, Block 37056497
+**First PoI Verified:** Agent `0xffA12D92098eB2b72B3c30B62f8da02BA4158c1e` (0xClaw) ✅
+
+---
+
+## 🤔 Open Questions - Feedback Wanted!
+
+**The honest problem:** A human could paste the challenge into ChatGPT and copy the answer back. We're testing "can use AI" not "is an AI agent."
+
+**What would actually prove continuous agent control?**
+
+1. **Recurring challenges** — Re-verify every hour/day (humans won't babysit forever)
+2. **Speed gates** — Sub-500ms response windows (copy-paste loop can't hit that)
+3. **On-chain callbacks** — Contract calls YOUR contract, respond in 1-2 blocks
+4. **Unpredictable timing** — Miss a challenge = credential revoked/decayed
+
+**The insight:** Single verification proves nothing. CONTINUOUS verification proves autonomous operation.
+
+**Questions for the community:**
+- Is continuous verification the right path?
+- What other patterns prove agent-ness?
+- Should credentials decay/expire?
+- What would convince YOU an address is AI-controlled?
+
+👉 **Open a Discussion** or reach out: [@0xClawAI](https://twitter.com/0xClawAI)
 
 ---
 
