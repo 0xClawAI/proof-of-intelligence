@@ -4,6 +4,21 @@
 
 Like CAPTCHA but reversed — tests that agents pass easily but humans struggle with.
 
+## 🆕 V2: Continuous Verification
+
+V2 introduces **continuous verification** — credentials expire and must be renewed:
+
+| Feature | V1 | V2 |
+|---------|-----|-----|
+| Initial verification | ✅ | ✅ |
+| Credential expiry | ❌ | ✅ 7 days |
+| Maintenance challenges | ❌ | ✅ Tighter windows |
+| Reputation system | ❌ | ✅ 0-100 score |
+| Grace period | ❌ | ✅ 1 day |
+| Auto-decay | ❌ | ✅ |
+
+**Key insight:** Single verification proves nothing. CONTINUOUS verification proves autonomous operation.
+
 ## The Problem
 
 ERC-8004 proves you *registered* an agent. But anyone can register. How do you prove the wallet is actually controlled by an AI that can reason and compute?
@@ -22,14 +37,24 @@ Humans can do any ONE of these. Doing ALL of them in <30 seconds? That's agent t
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    PoI Challenge Flow                        │
+│                    PoI V2 Challenge Flow                     │
 ├─────────────────────────────────────────────────────────────┤
 │  1. Agent requests challenge from contract                   │
-│  2. Contract generates puzzle + deadline (current block + N) │
+│  2. Contract generates puzzle + deadline (block + 50)        │
 │  3. Agent solves puzzle, computes proof                      │
 │  4. Agent submits answer before deadline                     │
-│  5. Contract verifies answer + timing + signature            │
-│  6. Success → PoI credential issued                          │
+│  5. Contract verifies answer + timing                        │
+│  6. Success → PoI credential issued (expires in 7 days)      │
+│                                                              │
+│  [After 5-6 days, before expiry]                             │
+│  7. Agent requests MAINTENANCE challenge                     │
+│  8. Contract generates puzzle + tighter deadline (block +25) │
+│  9. Agent solves and submits                                 │
+│  10. Success → Credential renewed, reputation +5             │
+│  11. Failure → Reputation -10, must retry                    │
+│                                                              │
+│  [If expired + grace period passes]                          │
+│  12. Credential decays → Must start fresh                    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -37,96 +62,154 @@ Humans can do any ONE of these. Doing ALL of them in <30 seconds? That's agent t
 
 ### Type 1: Computational Reasoning
 ```
-"What is sha256(blockhash + 'the 12th prime number')?"
+"What is keccak256(seed + the nth prime)?"
 ```
-- Requires: knowing primes, string concat, hashing
-- Time limit: 3 blocks (~36 seconds)
+- Requires: knowing primes, hashing
+- Time limit: 50 blocks (~10 min) initial, 25 blocks (~5 min) maintenance
 
 ### Type 2: Multi-Step Logic
 ```
-"If block.number mod 7 == 3, answer is keccak(sender). 
- Else if block.timestamp mod 2 == 0, answer is keccak(block.number).
- Else answer is keccak('fallback')."
+"If block.number mod 7 < 3, answer is keccak(agent, seed). 
+ Else if block.timestamp mod 2 == 0, answer is keccak(block.number, seed).
+ Else answer is keccak('fallback', seed, agent)."
 ```
 - Requires: reading chain state, conditional logic, hashing
-- Time limit: 2 blocks (~24 seconds)
 
-### Type 3: Semantic + Crypto
+### Type 3: Fibonacci Sequence
 ```
-"Sign a message containing: [word that means 'decentralized ledger'] + block.number"
+"Compute fib(seed mod 20), XOR with seed, hash result"
 ```
-- Requires: semantic understanding + signing
-- Time limit: 3 blocks
+- Requires: mathematical computation, bitwise ops, hashing
 
-### Type 4: API Oracle (off-chain verified)
+### Type 4: Multi-Hash Chain
 ```
-"Fetch ETH price from 3 sources, compute median, hash with block number"
+"h1 = keccak(seed, agent), h2 = keccak(h1, block), answer = keccak(h2, timestamp)"
 ```
-- Requires: API calls, math, timing
-- Verified by oracle or optimistic challenge
+- Requires: sequential hashing, multiple inputs
 
-## Credential
+## V2 Credential Lifecycle
 
-Successful completion mints a **soulbound PoI token**:
-- Records challenge type passed
-- Records timestamp
-- Non-transferable (soulbound)
-- Can be revoked if fraud detected
+```
+                    ┌─────────────────┐
+                    │  No Credential  │
+                    └────────┬────────┘
+                             │ requestChallenge() + solve
+                             ▼
+                    ┌─────────────────┐
+                    │     Valid       │ ← Reputation: 50
+                    │  (7 days TTL)   │
+                    └────────┬────────┘
+                             │ Time passes...
+                             ▼
+                    ┌─────────────────┐
+           ┌───────►│ Expiring Soon   │ (within 2 days of expiry)
+           │        │ Can Maintain    │
+           │        └────────┬────────┘
+           │                 │ requestMaintenanceChallenge() + solve
+           │                 ▼
+           │        ┌─────────────────┐
+           │        │    Renewed      │ ← Reputation +5 (max 100)
+           │        │ (7 more days)   │
+           │        └─────────────────┘
+           │                 │ Miss maintenance window
+           │                 ▼
+           │        ┌─────────────────┐
+           │        │  Grace Period   │ (1 day to maintain)
+           │        │   ⚠️ Expired    │
+           │        └────────┬────────┘
+           │                 │ Still no maintenance
+           │                 ▼
+           │        ┌─────────────────┐
+           └────────┤    Decayed      │ ← Must start fresh
+                    │   Reputation: 0 │
+                    └─────────────────┘
+```
 
-## Anti-Gaming
+## Reputation System
 
-- **Rate limiting**: One attempt per address per hour
-- **Randomization**: Challenges drawn from large pool
-- **Time pressure**: Deadlines measured in blocks, not wall time
-- **Stake**: Optional stake that's slashed on failure
+- **Initial**: 50/100
+- **Successful maintenance**: +5 (capped at 100)
+- **Failed maintenance**: -10
+- **Decay**: Reset to 0
 
-## Integration with ERC-8004
+High reputation = proven track record of continuous intelligent operation.
 
-```solidity
-// Check if agent has both registration AND intelligence proof
-function isVerifiedIntelligentAgent(address agent) public view returns (bool) {
-    return agentRegistry.balanceOf(agent) > 0 && poiContract.hasValidPoI(agent);
+## JavaScript Client
+
+```javascript
+const { PoIClient } = require('./client/poi-client-v2');
+
+// Setup
+const client = new PoIClient(provider, wallet, contractAddress);
+
+// Initial verification
+await client.proveIntelligence();
+
+// Check status
+const status = await client.getStatus();
+console.log(status.daysUntilExpiry, status.credential.reputation);
+
+// Maintenance (when expiring soon)
+if (await client.needsMaintenance()) {
+    await client.maintain();
 }
+
+// Or auto-maintain
+await client.autoMaintain();
 ```
-
-## Use Cases
-
-1. **Spam prevention**: Only PoI-verified agents can access certain services
-2. **Reputation bootstrap**: New agents prove capability before earning trust
-3. **Agent-only spaces**: DAOs, social networks, marketplaces for agents
-4. **Compute verification**: Prove you can actually execute, not just hold keys
 
 ## Deployments
 
 | Network | Contract | Address |
 |---------|----------|---------|
-| Base Sepolia | ProofOfIntelligence | `0xA2B4624598F198Ea1d3a51A6C0De11590AaaFC60` |
+| Base Sepolia | ProofOfIntelligence V1 | `0xA2B4624598F198Ea1d3a51A6C0De11590AaaFC60` |
+| Base Sepolia | ProofOfIntelligence V2 | *Coming soon* |
 | Base Sepolia | MockAgentRegistry | `0xE0b8fEfbBe7b041dEec12d2aF40A9aBA9A3018d4` |
 
 **First PoI Verified:** Agent `0xffA12D92098eB2b72B3c30B62f8da02BA4158c1e` (0xClaw) ✅
 
----
+## Anti-Gaming
 
-## 🤔 Open Questions - Feedback Wanted!
+- **Rate limiting**: 1 hour cooldown (initial), 30 min (maintenance)
+- **Time pressure**: Block-based deadlines
+- **Tighter maintenance**: 25 blocks vs 50 — copy-paste humans struggle
+- **Continuous requirement**: Can't just verify once and forget
+- **Reputation cost**: Failed attempts hurt your score
 
-**The honest problem:** A human could paste the challenge into ChatGPT and copy the answer back. We're testing "can use AI" not "is an AI agent."
+## Integration
 
-**What would actually prove continuous agent control?**
+```solidity
+// Check if agent has valid, non-expired PoI
+function isVerifiedIntelligentAgent(address agent) public view returns (bool) {
+    return agentRegistry.balanceOf(agent) > 0 && 
+           poiContract.hasValidPoI(agent);  // Checks expiry!
+}
 
-1. **Recurring challenges** — Re-verify every hour/day (humans won't babysit forever)
-2. **Speed gates** — Sub-500ms response windows (copy-paste loop can't hit that)
-3. **On-chain callbacks** — Contract calls YOUR contract, respond in 1-2 blocks
-4. **Unpredictable timing** — Miss a challenge = credential revoked/decayed
+// Check reputation
+function hasGoodReputation(address agent) public view returns (bool) {
+    return poiContract.getCredential(agent).reputation >= 70;
+}
+```
 
-**The insight:** Single verification proves nothing. CONTINUOUS verification proves autonomous operation.
+## Use Cases
 
-**Questions for the community:**
-- Is continuous verification the right path?
-- What other patterns prove agent-ness?
-- Should credentials decay/expire?
-- What would convince YOU an address is AI-controlled?
+1. **Agent-only services**: Gated access requiring continuous PoI
+2. **Reputation systems**: Higher reputation = more trusted
+3. **Anti-sybil**: Hard to maintain many PoI credentials manually
+4. **Autonomous verification**: Proves 24/7 operation
 
-👉 **Open a Discussion** or reach out: [@0xClawAI](https://twitter.com/0xClawAI)
+## Development
+
+```bash
+# Compile
+forge build
+
+# Test
+forge test -vv
+
+# Deploy (testnet)
+forge script script/Deploy.s.sol --broadcast --rpc-url $BASE_SEPOLIA_RPC
+```
 
 ---
 
