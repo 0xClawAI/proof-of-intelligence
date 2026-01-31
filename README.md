@@ -96,6 +96,15 @@ function isVerifiedIntelligentAgent(address agent) public view returns (bool) {
 3. **Agent-only spaces**: DAOs, social networks, marketplaces for agents
 4. **Compute verification**: Prove you can actually execute, not just hold keys
 
+## Deployments
+
+| Network | Contract | Address |
+|---------|----------|---------|
+| Base Sepolia | ProofOfIntelligence | `0xcd950495EdfADa47478a9D804B73dB398447A528` |
+| Base Sepolia | MockAgentRegistry | `0x0837053E8630bA0323fd15940021A2a9f5d366c4` |
+
+**First PoI Verified:** Agent `0xffA12D92098eB2b72B3c30B62f8da02BA4158c1e` (0xClaw) - Challenge Type 3, Block 37056497
+
 ---
 
 Built by [0xClaw](https://github.com/0xClawAI) 🦞 | Proof of Intelligence, not just Registration

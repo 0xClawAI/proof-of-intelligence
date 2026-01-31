@@ -21,6 +21,8 @@ contract ProofOfIntelligence {
         uint8 challengeType;      // Type of challenge (1-4)
         bytes32 seed;             // Random seed for challenge generation
         uint256 deadline;         // Block number deadline
+        uint256 issuedBlock;      // Block when challenge was issued
+        uint256 issuedTimestamp;  // Timestamp when challenge was issued
         bool completed;           // Whether solved
     }
     
@@ -46,7 +48,7 @@ contract ProofOfIntelligence {
     uint256 public totalFailed;
     
     // Config
-    uint256 public constant CHALLENGE_WINDOW = 3;      // blocks to solve
+    uint256 public constant CHALLENGE_WINDOW = 50;     // blocks to solve (~10 min on Base)
     uint256 public constant COOLDOWN_PERIOD = 1 hours;
     
     // ============ Events ============
@@ -110,6 +112,8 @@ contract ProofOfIntelligence {
             challengeType: challengeType,
             seed: seed,
             deadline: deadline,
+            issuedBlock: block.number,
+            issuedTimestamp: block.timestamp,
             completed: false
         });
         
@@ -140,11 +144,13 @@ contract ProofOfIntelligence {
             revert ChallengExpired();
         }
         
-        // Compute expected answer based on challenge type
-        bytes32 expectedAnswer = computeExpectedAnswer(
+        // Compute expected answer based on challenge type using stored block data
+        bytes32 expectedAnswer = _computeAnswer(
             challenge.challengeType,
             challenge.seed,
-            msg.sender
+            msg.sender,
+            challenge.issuedBlock,
+            challenge.issuedTimestamp
         );
         
         // Verify answer
@@ -171,45 +177,56 @@ contract ProofOfIntelligence {
     
     /**
      * @notice Compute the expected answer for a challenge
-     * @dev This is public so agents can verify their computation off-chain
+     * @dev Uses stored challenge block data for deterministic answers
      */
     function computeExpectedAnswer(
         uint8 challengeType,
         bytes32 seed,
         address agent
     ) public view returns (bytes32) {
+        // Get stored challenge data for block-dependent types
+        Challenge storage challenge = challenges[agent];
+        return _computeAnswer(challengeType, seed, agent, challenge.issuedBlock, challenge.issuedTimestamp);
+    }
+    
+    /**
+     * @notice Internal answer computation with explicit block data
+     */
+    function _computeAnswer(
+        uint8 challengeType,
+        bytes32 seed,
+        address agent,
+        uint256 blockNum,
+        uint256 timestamp
+    ) internal pure returns (bytes32) {
         
         if (challengeType == 1) {
-            // Type 1: Hash of seed + block number + prime
-            // "What is keccak256(seed || nthPrime(seed % 20 + 1))?"
+            // Type 1: Hash of seed + prime
             uint256 primeIndex = (uint256(seed) % 20) + 1;
             uint256 prime = getNthPrime(primeIndex);
             return keccak256(abi.encodePacked(seed, prime));
             
         } else if (challengeType == 2) {
-            // Type 2: Conditional logic based on block state
-            // Complex branching that requires reading chain state
-            if (block.number % 7 < 3) {
+            // Type 2: Conditional logic based on issued block state
+            if (blockNum % 7 < 3) {
                 return keccak256(abi.encodePacked(agent, seed));
-            } else if (block.timestamp % 2 == 0) {
-                return keccak256(abi.encodePacked(block.number, seed));
+            } else if (timestamp % 2 == 0) {
+                return keccak256(abi.encodePacked(blockNum, seed));
             } else {
                 return keccak256(abi.encodePacked("fallback", seed, agent));
             }
             
         } else if (challengeType == 3) {
             // Type 3: Mathematical sequence
-            // Compute: hash(seed XOR fibonacci(seed % 20))
             uint256 fibIndex = uint256(seed) % 20;
             uint256 fib = getFibonacci(fibIndex);
             return keccak256(abi.encodePacked(uint256(seed) ^ fib));
             
         } else {
             // Type 4: Multi-hash chain
-            // hash(hash(hash(seed || agent) || block.number) || timestamp)
             bytes32 h1 = keccak256(abi.encodePacked(seed, agent));
-            bytes32 h2 = keccak256(abi.encodePacked(h1, block.number));
-            return keccak256(abi.encodePacked(h2, block.timestamp));
+            bytes32 h2 = keccak256(abi.encodePacked(h1, blockNum));
+            return keccak256(abi.encodePacked(h2, timestamp));
         }
     }
     
