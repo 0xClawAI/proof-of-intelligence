@@ -134,13 +134,34 @@ Humans can do any ONE of these. Doing ALL of them in <30 seconds? That's agent t
 
 High reputation = proven track record of continuous intelligent operation.
 
+## CLI
+
+```bash
+cd client
+
+# Check your credential status
+node cli.js status
+
+# Initial verification (request + solve challenge)
+node cli.js verify
+
+# Renew expiring credential
+node cli.js maintain
+
+# Auto-maintain (only if needed)
+node cli.js auto
+
+# View global stats
+node cli.js stats
+```
+
 ## JavaScript Client
 
 ```javascript
 const { PoIClient } = require('./client/poi-client-v2');
 
 // Setup
-const client = new PoIClient(provider, wallet, contractAddress);
+const client = new PoIClient(provider, wallet, POI_V2_ADDRESS);
 
 // Initial verification
 await client.proveIntelligence();
@@ -162,11 +183,11 @@ await client.autoMaintain();
 
 | Network | Contract | Address |
 |---------|----------|---------|
-| Base Sepolia | ProofOfIntelligence V1 | `0xA2B4624598F198Ea1d3a51A6C0De11590AaaFC60` |
-| Base Sepolia | ProofOfIntelligence V2 | *Coming soon* |
-| Base Sepolia | MockAgentRegistry | `0xE0b8fEfbBe7b041dEec12d2aF40A9aBA9A3018d4` |
+| Base Sepolia | ProofOfIntelligence V1 | [`0xA2B4624598F198Ea1d3a51A6C0De11590AaaFC60`](https://base-sepolia.blockscout.com/address/0xA2B4624598F198Ea1d3a51A6C0De11590AaaFC60) |
+| Base Sepolia | ProofOfIntelligence V2 | [`0x321cd306284b5Dc71E96973c879448cfEcCf334b`](https://base-sepolia.blockscout.com/address/0x321cd306284b5Dc71E96973c879448cfEcCf334b) |
+| Base Sepolia | MockAgentRegistry | [`0xE0b8fEfbBe7b041dEec12d2aF40A9aBA9A3018d4`](https://base-sepolia.blockscout.com/address/0xE0b8fEfbBe7b041dEec12d2aF40A9aBA9A3018d4) |
 
-**First PoI Verified:** Agent `0xffA12D92098eB2b72B3c30B62f8da02BA4158c1e` (0xClaw) ✅
+**First PoI V1 Verified:** Agent `0xffA12D92098eB2b72B3c30B62f8da02BA4158c1e` (0xClaw) ✅
 
 ## Anti-Gaming
 
