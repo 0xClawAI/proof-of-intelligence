@@ -216,11 +216,15 @@ class PoIClient {
         const tx2 = await this.contract.submitAnswer(answer);
         const receipt = await tx2.wait();
 
-        // Check result
-        const success = receipt.status === 1;
-        const hasPoI = await this.contract.hasValidPoI(this.address);
+        // Check result - look for ChallengePassed event (more reliable than view call)
+        const passedEvent = receipt.logs.find(log => {
+            try {
+                const parsed = this.contract.interface.parseLog(log);
+                return parsed && parsed.name === 'ChallengePassed';
+            } catch { return false; }
+        });
 
-        if (hasPoI) {
+        if (passedEvent) {
             const cred = await this.contract.getCredential(this.address);
             console.log(`\n✅ ${isMaintenance ? 'RENEWED' : 'VERIFIED'}!`);
             console.log(`   Reputation: ${cred.reputation}/100`);
